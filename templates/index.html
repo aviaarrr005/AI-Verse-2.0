@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>AI Proctor Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #2c2c2c; color: white; margin: 0; }
+        .container { display: flex; flex-direction: column; align-items: center; padding-top: 20px; }
+        #video-feed {
+            width: 640px;
+            height: 480px;
+            border: 5px solid #555;
+            border-radius: 10px;
+            background: #111; /* Dark background for loading */
+        }
+        #alert-banner {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #4CAF50; /* Start with green for "FOCUSED" */
+            padding: 10px;
+            height: 50px;
+            text-align: center;
+        }
+        .alert-red { color: #f44336 !important; } /* Red for alerts */
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+</head>
+<body>
+
+    <div class="container">
+        <h1>AI Proctor Dashboard</h1>
+        
+        <h1 id="alert-banner">STATUS: FOCUSED</h1>
+        
+        <img id="video-feed" src="{{ url_for('video_feed') }}" alt="Webcam Feed">
+    </div>
+
+    <script>
+        // This JavaScript connects back to our Python server
+        document.addEventListener("DOMContentLoaded", function() {
+            var socket = io.connect(location.protocol + '//'
+             + document.domain + ':' + location.port);
+
+            // This function "listens" for a message named 'proctor_alert'
+            // Our Python code will send this message.
+            socket.on('proctor_alert', function(data) {
+                
+                var alertBanner = document.getElementById('alert-banner');
+                alertBanner.innerHTML = data.message; // Update the banner text
+
+                // Change color based on the alert status
+                if (data.status === 'alert') {
+                    alertBanner.classList.add('alert-red');
+                } else {
+                    alertBanner.classList.remove('alert-red');
+                }
+            });
+        });
+    </script>
+
+</body>
+</html>
