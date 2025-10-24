@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Proctoring</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-color: #121212;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 1rem;
+            box-sizing: border-box;
+        }
+        h1 {
+            color: #ffffff;
+            font-weight: 500;
+            margin-top: 0;
+            margin-bottom: 1.5rem;
+        }
+        #score-container {
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+        #score-value {
+            font-size: 4.5rem;
+            font-weight: 700;
+            line-height: 1;
+            display: block;
+            margin-bottom: 0.5rem;
+            transition: color 0.5s ease;
+        }
+        .score-good { color: #00C853; } /* Green */
+        .score-warn { color: #FFA000; } /* Orange */
+        .score-bad { color: #D81B60; }  /* Red/Pink */
+
+        #score-label {
+            font-size: 1rem;
+            font-weight: 500;
+            color: #aaa;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+        }
+        #penalty-reason {
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: #e0e0e0;
+            margin-bottom: 1.5rem;
+            height: 20px; /* Reserve space to prevent layout shift */
+            text-align: center;
+        }
+        #video-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            border-radius: 12px;
+            overflow: hidden;
+            background-color: #000;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+        }
+        img {
+            display: block;
+            width: 100%;
+            height: auto;
+        }
+        #status-box {
+            position: absolute;
+            bottom: 12px;
+            left: 12px;
+            right: 12px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            text-align: center;
+            transition: all 0.3s ease;
+            color: #ffffff;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+        }
+        /* Status styles */
+        .status-ok {
+            background-color: rgba(0, 200, 83, 0.85); /* Green */
+        }
+        .status-alert {
+            background-color: rgba(216, 27, 96, 0.85); /* Red/Pink */
+            animation: pulse-alert 1.5s infinite;
+        }
+        .status-calib {
+            background-color: rgba(255, 160, 0, 0.85); /* Orange */
+        }
+
+        #recalib-button {
+            margin-top: 20px;
+            padding: 12px 24px;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #ffffff;
+            background-color: #007aff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.2s ease, transform 0.1s ease;
+            box-shadow: 0 4px 12px rgba(0, 122, 255, 0.3);
+        }
+        #recalib-button:hover {
+            background-color: #0056b3;
+        }
+        #recalib-button:active {
+            transform: scale(0.98);
+        }
+
+        @keyframes pulse-alert {
+            0% {
+                transform: scale(1);
+                box-shadow: 0 4px 10px rgba(216, 27, 96, 0.4);
+            }
+            50% {
+                transform: scale(1.02);
+                box-shadow: 0 6px 20px rgba(216, 27, 96, 0.7);
+            }
+            100% {
+                transform: scale(1);
+                box-shadow: 0 4px 10px rgba(216, 27, 96, 0.4);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="score-container">
+        <span id="score-value" class="score-good">100.00</span>
+        <span id="score-label">Focus Score</span>
+    </div>
+    <div id="penalty-reason">FOCUSED</div>
+    <h1>AI Proctoring Feed</h1>
+    <div id="video-container">
+        <img src="{{ url_for('video_feed') }}" alt="Video Feed">
+        <div id="status-box" class="status-calib">
+            Connecting...
+        </div>
+    </div>
+    <button id="recalib-button">Recalibrate Head Pose</button>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', (event) => {
+            // Connect to the Socket.IO server
+            const socket = io.connect(location.protocol + '//' + document.domain + ':' + location.port);
+
+            const statusBox = document.getElementById('status-box');
+            const recalibButton = document.getElementById('recalib-button');
+            const scoreValueEl = document.getElementById('score-value');
+            const penaltyReasonEl = document.getElementById('penalty-reason');
+
+            socket.on('connect', () => {
+                console.log('Connected to server.');
+            });
+
+            // Listen for 'proctor_alert' events
+            socket.on('proctor_alert', (data) => {
+                console.log('Alert received:', data);
+                statusBox.textContent = data.message;
+                
+                // Remove old status classes
+                statusBox.classList.remove('status-ok', 'status-alert', 'status-calib');
+
+                // Add new status class
+                if (data.status === 'ok') {
+                    statusBox.classList.add('status-ok');
+                } else if (data.status === 'alert') {
+                    statusBox.classList.add('status-alert');
+                } else if (data.status === 'calib') {
+                    statusBox.classList.add('status-calib');
+                }
+            });
+
+            socket.on('score_update', (data) => {
+                const scoreVal = parseFloat(data.score);
+                scoreValueEl.textContent = data.score;
+                penaltyReasonEl.textContent = data.reason;
+
+                // Update score color
+                scoreValueEl.classList.remove('score-good', 'score-warn', 'score-bad');
+                if (scoreVal > 70) {
+                    scoreValueEl.classList.add('score-good');
+                } else if (scoreVal > 40) {
+                    scoreValueEl.classList.add('score-warn');
+                } else {
+                    scoreValueEl.classList.add('score-bad');
+                }
+            });
+
+            // Handle button click
+            recalibButton.addEventListener('click', () => {
+                console.log('Emitting recalibrate event.');
+                socket.emit('recalibrate');
+            });
+        });
+    </script>
+</body>
+</html>
