@@ -16,7 +16,7 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'aiforsecurity'
 socketio = SocketIO(app)
 
-CAMERA_SOURCE = "http://192.168.0.101:4747/mjpegfeed"
+CAMERA_SOURCE = "http://192.168.0.102:4747/mjpegfeed"
 
 YAW_THRESH = 20
 PITCH_DOWN_THRESH = 40
@@ -164,7 +164,7 @@ last_score_update_time = time.monotonic() # Initialize time for score calculatio
 
 @app.route("/")
 def index():
-    return render_template("index2.html")
+    return render_template("index3.html")
 
 @socketio.on('recalibrate')
 def handle_recalibrate():
