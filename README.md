@@ -8,7 +8,7 @@
 
 * Avilash Rout
 * A R Sagar
-* Chaitanya D S
+* Chaithanya D S
 * Bhavana Balachandra Hegde
 * Yashwanth E S
 
