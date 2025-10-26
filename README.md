@@ -60,8 +60,9 @@ Installation and Setup
    - opencv-python, numpy, mediapipe
    - ultralytics, torch, torchvision, torchaudio
    - SpeechRecognition, pyaudio
+(pip install -r requirements.txt)
 3. Run the server:
-   python PolySpectra(final).py
+   python PolySpectra.py
 4. Open the browser at http://127.0.0.1:5000
 5. Click "Start Monitoring" to begin calibration and monitoring
 
