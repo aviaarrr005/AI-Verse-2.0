@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Proctoring Dashboard</title>
+  <style>
+    :root {
+      --bg: #121212;
+      --panel: #1b1b1b;
+      --panel-2: #202020;
+      --text: #e0e0e0;
+      --subtle: #bdbdbd;
+      --ok: #00C853;
+      --warn: #FFA000;
+      --alert: #D81B60;
+      --blue: #007aff;
+      --card-border: #2a2a2a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+    header {
+      padding: 16px 20px;
+      background: #0f0f0f;
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: .2px;
+    }
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 8px;
+      font-weight: 700;
+      cursor: pointer;
+      color: #fff;
+      transition: transform .08s ease, opacity .2s ease, background-color .15s ease;
+    }
+    .btn:active { transform: translateY(1px) scale(0.99); }
+    .btn:disabled { opacity: .55; cursor: not-allowed; }
+
+    .btn-start { background: var(--ok); }
+    .btn-start:hover:enabled { background: #06b24f; }
+    .btn-stop { background: var(--alert); }
+    .btn-stop:hover:enabled { background: #b31550; }
+    .btn-recalib { background: var(--blue); }
+    .btn-recalib:hover:enabled { background: #0666d6; }
+
+    main {
+      padding: 18px;
+      max-width: 1400px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      grid-template-rows: auto auto 1fr;
+      gap: 16px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 14px;
+    }
+    .card h2 {
+      font-size: 1rem;
+      margin: 0 0 10px 0;
+      font-weight: 700;
+      color: #fff;
+    }
+    .video-wrap {
+      position: relative;
+      overflow: hidden;
+      border-radius: 12px;
+      background: #000;
+    }
+    .video-wrap img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+    .status-pill {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      right: 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-weight: 800;
+      text-align: center;
+      color: #fff;
+      background: rgba(0,0,0,.55);
+    }
+    .status-ok { background: rgba(0, 200, 83, .88); }
+    .status-alert { background: rgba(216, 27, 96, .88); }
+    .status-calib { background: rgba(255, 160, 0, .88); }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    .stat {
+      background: var(--panel-2);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+    .stat-label {
+      font-size: .85rem;
+      color: var(--subtle);
+      margin-bottom: 6px;
+    }
+    .stat-value {
+      font-size: 1.8rem;
+      font-weight: 800;
+    }
+    .score-good { color: var(--ok); }
+    .score-warn { color: var(--warn); }
+    .score-bad  { color: var(--alert); }
+
+    .charts {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .log-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .95rem;
+    }
+    .log-table th, .log-table td {
+      border-bottom: 1px solid var(--card-border);
+      padding: 8px 8px;
+      text-align: left;
+    }
+    .muted { color: var(--subtle); }
+    .footer-note {
+      color: var(--subtle);
+      font-size: .85rem;
+      margin-top: 10px;
+    }
+
+    @media (max-width: 1100px) {
+      main { grid-template-columns: 1fr; }
+      .charts { grid-template-columns: 1fr; }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>AI Proctoring Dashboard</h1>
+    <div class="controls">
+      <button id="start-btn" class="btn btn-start">Start Monitoring</button>
+      <button id="stop-btn" class="btn btn-stop" disabled>Stop Monitoring</button>
+      <button id="recalib-btn" class="btn btn-recalib" disabled>Recalibrate</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Left column: video + charts -->
+    <section class="card video-wrap" style="grid-row: span 2;">
+      <img id="video" src="" alt="Video Feed">
+      <div id="status-pill" class="status-pill status-ok">Monitoring stopped</div>
+    </section>
+
+    <!-- Right column: stats -->
+    <section class="card">
+      <h2>Session Stats</h2>
+      <div class="stats-grid">
+        <div class="stat">
+          <div class="stat-label">Focus Score</div>
+          <div id="score-val" class="stat-value score-good">100.00</div>
+          <div id="score-reason" class="muted">FOCUSED</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Status</div>
+          <div id="status-text" class="stat-value" style="font-size:1.2rem;line-height:1.05">Stopped</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Session Time</div>
+          <div id="timer" class="stat-value" style="font-size:1.6rem;">00:00:00</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Total Alerts</div>
+          <div id="total-alerts" class="stat-value">0</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card charts">
+      <div>
+        <h2>Focus Score Over Time</h2>
+        <canvas id="scoreChart" height="140"></canvas>
+      </div>
+      <div>
+        <h2>Alert Counts</h2>
+        <canvas id="alertsChart" height="140"></canvas>
+      </div>
+    </section>
+
+    <section class="card" style="grid-column: 1 / -1;">
+      <h2>Recent Alerts</h2>
+      <table class="log-table" id="alerts-table">
+        <thead>
+          <tr><th style="width:150px">Time</th><th>Message</th></tr>
+        </thead>
+        <tbody id="alerts-body"></tbody>
+      </table>
+      <div class="footer-note">Only alerts are logged here. Status messages (e.g., FOCUSED) are not recorded.</div>
+    </section>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    (function() {
+      const socket = io.connect(location.protocol + '//' + document.domain + ':' + location.port);
+
+      // Elements
+      const videoEl = document.getElementById('video');
+      const statusPill = document.getElementById('status-pill');
+      const statusText = document.getElementById('status-text');
+      const startBtn = document.getElementById('start-btn');
+      const stopBtn = document.getElementById('stop-btn');
+      const recalibBtn = document.getElementById('recalib-btn');
+      const scoreVal = document.getElementById('score-val');
+      const scoreReason = document.getElementById('score-reason');
+      const timerEl = document.getElementById('timer');
+      const totalAlertsEl = document.getElementById('total-alerts');
+      const alertsBody = document.getElementById('alerts-body');
+
+      const streamUrl = "{{ url_for('video_feed') }}";
+      let monitoring = false;
+      let sessionStart = null;
+      let timerHandle = null;
+
+      // Client-side alert counters (no backend change needed)
+      const counts = {
+        DISTRACTED: 0,
+        EYES_CLOSED: 0,
+        GAZE_DISTRACTION: 0,
+        AWAY: 0,
+        MULTIPLE: 0,
+        TALKING: 0,
+        TAB_SWITCH: 0,
+        DEVICE: 0,
+        LIVENESS_FAILED: 0
+      };
+
+      // Score chart
+      const scoreCtx = document.getElementById('scoreChart').getContext('2d');
+      const scoreChart = new Chart(scoreCtx, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [{
+            label: 'Score',
+            data: [],
+            borderColor: '#00C853',
+            backgroundColor: 'rgba(0,200,83,0.12)',
+            tension: 0.25,
+            pointRadius: 0,
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          animation: false,
+          scales: {
+            x: { ticks: { color: '#bbb' }, grid: { color: '#2a2a2a' } },
+            y: { min: 0, max: 100, ticks: { color: '#bbb' }, grid: { color: '#2a2a2a' } }
+          },
+          plugins: { legend: { labels: { color: '#ddd' } } }
+        }
+      });
+
+      // Alerts bar chart
+      const alertLabels = ['DISTRACTED','EYES_CLOSED','GAZE_DISTRACTION','AWAY','MULTIPLE','TALKING','TAB_SWITCH','DEVICE','LIVENESS_FAILED'];
+      const alertsCtx = document.getElementById('alertsChart').getContext('2d');
+      const alertsChart = new Chart(alertsCtx, {
+        type: 'bar',
+        data: {
+          labels: alertLabels,
+          datasets: [{
+            label: 'Count',
+            data: alertLabels.map(k => counts[k]),
+            backgroundColor: [
+              '#FFB300','#FF7043','#26C6DA','#AB47BC','#42A5F5','#EC407A','#FFA726','#8D6E63','#EF5350'
+            ]
+          }]
+        },
+        options: {
+          responsive: true,
+          animation: false,
+          scales: {
+            x: { ticks: { color: '#bbb' }, grid: { display: false } },
+            y: { beginAtZero: true, ticks: { color: '#bbb' }, grid: { color: '#2a2a2a' } }
+          },
+          plugins: { legend: { labels: { color: '#ddd' } } }
+        }
+      });
+
+      function setPill(message, status) {
+        statusPill.textContent = message || '';
+        statusPill.classList.remove('status-ok','status-alert','status-calib');
+        if (status === 'ok') statusPill.classList.add('status-ok');
+        else if (status === 'alert') statusPill.classList.add('status-alert');
+        else if (status === 'calib') statusPill.classList.add('status-calib');
+      }
+
+      function setStatusText(txt) {
+        statusText.textContent = txt;
+      }
+
+      function updateScoreDisplay(val) {
+        const n = parseFloat(val);
+        scoreVal.textContent = isNaN(n) ? '---' : n.toFixed(2);
+        scoreVal.classList.remove('score-good','score-warn','score-bad');
+        if (!isNaN(n)) {
+          if (n > 70) scoreVal.classList.add('score-good');
+          else if (n > 40) scoreVal.classList.add('score-warn');
+          else scoreVal.classList.add('score-bad');
+        }
+      }
+
+      function addScorePoint(val) {
+        const ts = new Date().toLocaleTimeString();
+        scoreChart.data.labels.push(ts);
+        scoreChart.data.datasets[0].data.push(parseFloat(val));
+        // Keep last 120 points (~2min if ~1/sec)
+        const maxPts = 240;
+        if (scoreChart.data.labels.length > maxPts) {
+          scoreChart.data.labels.shift();
+          scoreChart.data.datasets[0].data.shift();
+        }
+        scoreChart.update('none');
+      }
+
+      function addAlertRow(message) {
+        const tr = document.createElement('tr');
+        const tdTime = document.createElement('td');
+        const tdMsg = document.createElement('td');
+        tdTime.textContent = new Date().toLocaleTimeString();
+        tdMsg.textContent = message;
+        tr.appendChild(tdTime);
+        tr.appendChild(tdMsg);
+        alertsBody.insertBefore(tr, alertsBody.firstChild);
+        // Limit to 100 recent
+        const maxRows = 100;
+        while (alertsBody.children.length > maxRows) alertsBody.removeChild(alertsBody.lastChild);
+      }
+
+      function categorizeAlert(message) {
+        if (!message || typeof message !== 'string') return null;
+        const m = message.toUpperCase();
+        if (m.includes('DISTRACTED')) return 'DISTRACTED';
+        if (m.includes('EYES CLOSED')) return 'EYES_CLOSED';
+        if (m.includes('GAZE DISTRACTION')) return 'GAZE_DISTRACTION';
+        if (m.includes('MULTIPLE')) return 'MULTIPLE';
+        if (m.includes('AWAY')) return 'AWAY';
+        if (m.includes('TALKING')) return 'TALKING';
+        if (m.includes('SWITCHED TABS') || m.includes('TAB_SWITCH')) return 'TAB_SWITCH';
+        if (m.includes('DETECTED')) return 'DEVICE';
+        if (m.includes('LIVENESS FAILED')) return 'LIVENESS_FAILED';
+        return null;
+      }
+
+      function incrementCount(cat) {
+        if (!counts.hasOwnProperty(cat)) return;
+        counts[cat] += 1;
+        totalAlertsEl.textContent = Object.keys(counts).reduce((acc,k)=>acc+counts[k],0);
+        alertsChart.data.datasets[0].data = alertLabels.map(k => counts[k]);
+        alertsChart.update('none');
+      }
+
+      function resetDashboard() {
+        // Counters
+        Object.keys(counts).forEach(k => counts[k] = 0);
+        alertsChart.data.datasets[0].data = alertLabels.map(k => counts[k]);
+        alertsChart.update('none');
+        totalAlertsEl.textContent = '0';
+        // Score chart
+        scoreChart.data.labels = [];
+        scoreChart.data.datasets[0].data = [];
+        scoreChart.update();
+        // Log
+        alertsBody.innerHTML = '';
+        // Status and score
+        updateScoreDisplay(100);
+        scoreReason.textContent = 'FOCUSED';
+        setPill('Monitoring stopped','ok');
+        setStatusText('Stopped');
+      }
+
+      function startTimer() {
+        if (timerHandle) clearInterval(timerHandle);
+        sessionStart = Date.now();
+        timerHandle = setInterval(() => {
+          if (!monitoring) return;
+          const s = Math.floor((Date.now() - sessionStart) / 1000);
+          const hh = String(Math.floor(s/3600)).padStart(2,'0');
+          const mm = String(Math.floor((s%3600)/60)).padStart(2,'0');
+          const ss = String(s%60).padStart(2,'0');
+          timerEl.textContent = `${hh}:${mm}:${ss}`;
+        }, 1000);
+      }
+
+      function stopTimer() {
+        if (timerHandle) clearInterval(timerHandle);
+        timerHandle = null;
+      }
+
+      // Controls
+      startBtn.addEventListener('click', () => {
+        if (monitoring) return;
+        monitoring = true;
+        // Reset dashboard for a clean session view
+        resetDashboard();
+        // Attach stream (bust cache)
+        videoEl.src = streamUrl + '?t=' + Date.now();
+        setPill('Connecting...', 'calib');
+        setStatusText('Connecting...');
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+        recalibBtn.disabled = false;
+        startTimer();
+      });
+
+      stopBtn.addEventListener('click', () => {
+        if (!monitoring) return;
+        monitoring = false;
+        // Drop stream to stop generator on server
+        videoEl.src = '';
+        setPill('Monitoring stopped', 'ok');
+        setStatusText('Stopped');
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+        recalibBtn.disabled = true;
+        stopTimer();
+      });
+
+      recalibBtn.addEventListener('click', () => {
+        if (!monitoring) return;
+        socket.emit('recalibrate');
+      });
+
+      // Socket events
+      socket.on('proctor_alert', (data) => {
+        if (!monitoring || !data) return;
+        setPill(data.message, data.status);
+        setStatusText(data.status === 'alert' ? 'Alert' : (data.status === 'calib' ? 'Calibrating' : 'OK'));
+
+        // Only record alerts
+        if (data.status === 'alert') {
+          const cat = categorizeAlert(data.message);
+          if (cat) incrementCount(cat);
+          addAlertRow(data.message);
+        }
+      });
+
+      socket.on('score_update', (data) => {
+        if (!monitoring || !data) return;
+        updateScoreDisplay(data.score);
+        scoreReason.textContent = data.reason || '';
+        addScorePoint(data.score);
+      });
+      let lastTabEmit = 0;
+        const TAB_EMIT_COOLDOWN_MS = 3000; // avoid spamming server
+
+        function emitTabSwitch() {
+        if (!monitoring) return;                 // only when monitoring
+  const now = Date.now();
+  if (now - lastTabEmit < TAB_EMIT_COOLDOWN_MS) return;
+  lastTabEmit = now;
+  console.log('Tab hidden/blur -> sending tab_switch_alert');
+  socket.emit('tab_switch_alert');
+}
+
+// Fires when page visibility changes (most reliable for tab switches)
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) emitTabSwitch();
+});
+
+// Also fire on window blur (covers some cases where visibility doesn't flip)
+window.addEventListener('blur', emitTabSwitch);
+      // Initial UI
+      resetDashboard();
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+      recalibBtn.disabled = true;
+    })();
+  </script>
+</body>
+</html>
