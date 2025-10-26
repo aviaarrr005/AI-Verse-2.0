@@ -332,7 +332,7 @@ liveness_fail_until: float = 0.0
 # --- FLASK ROUTES ---
 @app.route("/")
 def index():
-    return render_template("PolySpectra(final).html")
+    return render_template("PolySpectra.html")
 
 @socketio.on('recalibrate')
 def handle_recalibrate():
